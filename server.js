@@ -102,4 +102,6 @@ app.post('/storereport',(req,res)=>{
 })
 
 
-app.listen(4001,()=>console.log("app running in port 4001"));
+app.listen(
+  process.env.PORT||3000 , ()=>console.log(`App running in port ${process.env.PORT}`)
+);
