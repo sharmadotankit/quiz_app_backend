@@ -101,7 +101,9 @@ app.post('/storereport',(req,res)=>{
     .catch(err => res.json("Could not save your report!"))
 })
 
+const PORT = process.env.PORT;
 
-app.listen(
-  process.env.PORT||3000 , ()=>console.log(`App running in port ${process.env.PORT}`)
-);
+
+app.listen(PORT||3000 , ()=>{
+  console.log(`App running in port ${PORT}`)
+});
