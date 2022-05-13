@@ -12,10 +12,8 @@ app.use(express.json());
 const db = knex({
   client: 'pg',
   connection: {
-	  host : 'postgresql-rectangular-89547',
-	  user : 'postgres',
-	  password : 'postgres',
-	  database : 'quizapp'
+	  host : process.env.DATABASE_URL,
+    ssl:true,
   }
 });
 
