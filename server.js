@@ -23,6 +23,7 @@ app.get("/",(req,res)=>{ res.send('it is working')})
 app.post("/register",(req,res)=>{
     const {name,email,password} =req.body;
     const hash = bcrypt.hashSync(password, saltRounds);
+    console.log("i came here");
     db.transaction(trx =>{
       trx.insert({
         hash:hash,
