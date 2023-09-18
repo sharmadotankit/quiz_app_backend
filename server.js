@@ -5,6 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 const controller = require('./controller/controller');
+let port = process.env.PORT;
 
 
 app.post("/register", controller.registerUser)
@@ -13,4 +14,4 @@ app.get("/report/:email", controller.getReport)
 app.post('/storereport',controller.storeReport)
 
 
-app.listen(4001, () => console.log("app running in port 4001"));
+app.listen(port, () => console.log(`Server running in port ${port}`));
