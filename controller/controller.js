@@ -6,65 +6,82 @@ const db = knex(knexConfig.development);
 const jwt = require("jsonwebtoken");
 const JET = process.env.JWT_SECRET;
 
-const registerUser = async(req, res) => {
-  try{
+const registerUser = async (req, res) => {
+  try {
     const { name, email, password } = req.body;
     const hash = bcrypt.hashSync(password, saltRounds);
 
-    const userResponse = await db.select('*').from('users').where('email','=',email)
-    if(userResponse.length>0){
-      res.send({ status:false,data:null,message:"User already exists"});
+    const userResponse = await db
+      .select("*")
+      .from("users")
+      .where("email", email);
+    if (userResponse.length > 0) {
+      res.send({ status: false, data: null, message: "User already exists" });
       return;
     }
 
+    db.transaction(async (trx) => {
+      try {
+        const loginInsert = await trx("login")
+          .insert({
+            hash: hash,
+            email: email,
+          })
+          .returning("email");
 
-    db.transaction((trx) => {
-      trx
-        .insert({
-          hash: hash,
-          email: email,
-        })
-        .into("login")
-        .returning("email")
-        .then((loginEmail) => {
-          return trx("users")
-            .returning("*")
-            .insert({
-              email: loginEmail[0],
-              name: name,
-            })
-            .then(async(user) => {
-              let dataForToken = {
-                id: user[0].id,
-                email: user[0].email,
-              };
-          
-              let jwtOptions = { expiresIn: '720h' }
-              let authToken = jwt.sign(dataForToken,JET,jwtOptions);
+        if (loginInsert.length == 0) {
+          throw {
+            message: "Error in insertion in login table.",
+          };
+        }
 
-              console.log('userData',dataForToken)
-              console.log('authtoeken',authToken)
+        const userInsert = await trx("users")
+          .insert({
+            email: loginInsert[0].email,
+            name: name,
+          })
+          .returning("*");
 
-              await db("users").where("email", user[0].email).update({ token: authToken })
-              
-              const response = await db.select('*').from('user').where('email','=',user[0].email);
-              console.log('response',response)
+        if (userInsert.length == 0) {
+          throw {
+            message: "Error in insertion in users table.",
+          };
+        }
 
-              res.json({status:true, data:response[0], message:"User registered successfully"});
-            });
-        })
-        .then(trx.commit)
-        .catch(trx.rollback);
-    }).catch((err) => {
-      console.log("err", err);
-      res.status(400).json({ status:false,data:null,message:"Unable to register"});
+        let dataForToken = {
+          id: userInsert[0].id,
+          email: userInsert[0].email,
+        };
+
+        let jwtOptions = { expiresIn: "720h" };
+        let authToken = jwt.sign(dataForToken, JET, jwtOptions);
+
+        await trx("users")
+          .update({ token: authToken })
+          .where({ email: dataForToken.email });
+
+        let responseToReturn = await trx("users")
+          .select("*")
+          .where({ email: dataForToken.email });
+
+        res.json({
+          status: true,
+          data: responseToReturn[0],
+          message: "User registered successfully",
+        });
+      } catch (err) {
+        trx.rollback();
+        res
+          .status(400)
+          .json({ status: false, data: null, message: "Unable to register" });
+      }
     });
-  }catch(err){
-    res.status(400).json({ status:false,data:null,message:err.message});
-  }  
+  } catch (err) {
+    res.status(400).json({ status: false, data: null, message: err.message });
+  }
 };
 
-const signIn = (req, res) => {
+const signIn = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -86,8 +103,8 @@ const signIn = (req, res) => {
           const isValid = bcrypt.compareSync(password, data[0].hash);
           db.select("*")
             .from("users")
-            .where("email", "=", email)
-            .then((dataFromUser) => {
+            .where("email", email)
+            .then(async (dataFromUser) => {
               if (dataFromUser.length > 0) {
                 let dataForToken = {
                   id: dataFromUser[0].id,
@@ -96,20 +113,34 @@ const signIn = (req, res) => {
                 let jwtOptions = { expiresIn: "720h" };
                 let authToken = jwt.sign(dataForToken, JET, jwtOptions);
                 if (isValid) {
-                  db("users")
-                    .where("email", dataFromUser[0].email) 
-                    .update({ token: authToken })
+                  await db("users")
+                    .where("email", dataFromUser[0].email)
+                    .update({ token: authToken });
 
                   return db
                     .select("*")
                     .from("users")
-                    .where("email", "=", email)
+                    .where("email", email)
                     .then((user) => {
-                      res.status(200).json({status: true, data:user[0],message:"Signin successful"});
+                      res.status(200).json({
+                        status: true,
+                        data: user[0],
+                        message: "Signin successful",
+                      });
                     })
-                    .catch((err) => res.status(400).json({status : false, data: null, message:"Unable to get user"}))
+                    .catch((err) =>
+                      res.status(400).json({
+                        status: false,
+                        data: null,
+                        message: "Unable to get user",
+                      })
+                    );
                 } else {
-                  res.status(400).json({status : false, data: null, message:"Wrong Credentials!"});
+                  res.status(400).json({
+                    status: false,
+                    data: null,
+                    message: "Wrong Credentials!",
+                  });
                 }
               }
             });
@@ -149,9 +180,19 @@ const storeReport = (req, res) => {
     .catch((err) => res.json("Could not save your report!"));
 };
 
+const connectToServer = (req,res)=>{
+  try{
+    res.status(200).json({ status: true, data: null, message: "Connected to server" });
+  }
+  catch(err){
+    res.status(500).json({ status: false, data: null, message: "Something went wrong" });
+  }
+}
+
 module.exports = {
   registerUser,
   signIn,
   getReport,
   storeReport,
+  connectToServer,
 };

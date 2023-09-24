@@ -8,10 +8,12 @@ const controller = require('./controller/controller');
 let port = process.env.PORT;
 
 
+app.get('/connect-to-server',controller.connectToServer)
 app.post("/register", controller.registerUser)
 app.post('/signin', controller.signIn)
 app.get("/report/:email", controller.getReport)
 app.post('/storereport',controller.storeReport)
+
 
 
 app.listen(port, () => console.log(`Server running in port ${port}`));
